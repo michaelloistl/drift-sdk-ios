@@ -49,7 +49,7 @@ class DriftManager: NSObject {
         getEmbedData(embedId) { (success) in
             //If we have pending register data go in register flow - If register called before embeds is complete
             if let registerInfo = DriftManager.sharedInstance.registerInfo , success {
-                DriftManager.registerUser(registerInfo.userId, email: registerInfo.email, attrs: registerInfo.attrs)
+                DriftManager.registerUser(registerInfo.userId, email: registerInfo.email, attrs: registerInfo.attrs) { (sucess) in }
             }
         }
     }
@@ -61,10 +61,11 @@ class DriftManager: NSObject {
     /**
      Gets Auth for user - Calls Identify if new user
     */
-    class func registerUser(_ userId: String, email: String, attrs: [String: AnyObject]? = nil){
+    class func registerUser(_ userId: String, email: String, attrs: [String: AnyObject]? = nil, completion: @escaping (Bool) -> Void){
         guard let orgId = DriftDataStore.sharedInstance.embed?.orgId else {
             LoggerManager.log("No Embed, not registering user - Waiting for Embeds to complete")
             DriftManager.sharedInstance.registerInfo = (userId, email, attrs)
+            completion(false)
             return
         }
         
@@ -78,8 +79,14 @@ class DriftManager: NSObject {
                     if let userId = auth.enduser?.userId {
                         ConversationsManager.checkForConversations(userId: userId)
                         CampaignsManager.checkForCampaigns(userId: userId)
-                    }
-                }
+                      
+                        completion(true)
+                    } else {
+                      completion(false)
+                  }
+                } else {
+                  completion(false)
+              }
             }
         }
     }
