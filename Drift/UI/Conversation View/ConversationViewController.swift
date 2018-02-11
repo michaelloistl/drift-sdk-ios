@@ -70,7 +70,7 @@ class ConversationViewController: SLKTextViewController {
     }
     
     convenience init(conversationType: ConversationType) {
-        self.init(tableViewStyle: UITableViewStyle.grouped)
+        self.init(tableViewStyle: UITableViewStyle.grouped)!
         setConversationType(conversationType)
     }
 
@@ -97,7 +97,7 @@ class ConversationViewController: SLKTextViewController {
         if let navVC = navigationController {
             navVC.navigationBar.barTintColor = DriftDataStore.sharedInstance.generateBackgroundColor()
             navVC.navigationBar.tintColor = DriftDataStore.sharedInstance.generateForegroundColor()
-            navVC.navigationBar.titleTextAttributes = [NSForegroundColorAttributeName: DriftDataStore.sharedInstance.generateForegroundColor(), NSFontAttributeName: UIFont(name: "AvenirNext-Medium", size: 16)!]
+            navVC.navigationBar.titleTextAttributes = [NSAttributedStringKey.foregroundColor: DriftDataStore.sharedInstance.generateForegroundColor(), NSAttributedStringKey.font: UIFont(name: "AvenirNext-Medium", size: 16)!]
             navigationItem.title = "Conversation"
         }
         
@@ -121,6 +121,14 @@ class ConversationViewController: SLKTextViewController {
         didOpen()
     }
     
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        
+        textInputbar.bringSubview(toFront: textInputbar.textView)
+        textInputbar.bringSubview(toFront: textInputbar.leftButton)
+        textInputbar.bringSubview(toFront: textInputbar.rightButton)
+    }
+    
     override func viewWillDisappear(_ animated: Bool) {
         markConversationRead()
     }
@@ -129,7 +137,7 @@ class ConversationViewController: SLKTextViewController {
         NotificationCenter.default.removeObserver(self)
     }
     
-    func connectionStatusDidUpdate(notification: Notification) {
+    @objc func connectionStatusDidUpdate(notification: Notification) {
         if let status = notification.userInfo?["connectionStatus"] as? ConnectionStatus {
             connectionBarView.didUpdateStatus(status: status)
             showConnectionBar()
@@ -161,7 +169,7 @@ class ConversationViewController: SLKTextViewController {
     }
 
     
-    func didOpen() {
+    @objc func didOpen() {
         switch conversationType! {
         case .continueConversation(let conversationId):
             self.conversationId = conversationId
@@ -174,6 +182,30 @@ class ConversationViewController: SLKTextViewController {
                     emptyState.messageLabel.text = welcomeMessage
                 }else if let awayMessage = embed.awayMessage {
                     emptyState.messageLabel.text = awayMessage
+                }
+                
+                if embed.userListMode == .custom, let teamMember = embed.users.filter({embed.userListIds.contains($0.userId ?? -1)}).first{    
+                    if teamMember.bot {
+
+                        emptyState.avatarImageView.image = UIImage(named: "robot", in: Bundle(for: Drift.self), compatibleWith: nil)
+                        emptyState.avatarImageView.backgroundColor = DriftDataStore.sharedInstance.generateBackgroundColor()
+
+                    } else if let avatarURLString = teamMember.avatarURL, let avatarURL = URL(string: avatarURLString) {
+                        emptyState.avatarImageView.af_setImage(withURL: avatarURL)
+                    }
+                    
+                }else{
+                    if embed.users.count > 0 {
+                        let teamMember = embed.users[Int(arc4random_uniform(UInt32(embed.users.count)))]
+                        if teamMember.bot {
+                            
+                            emptyState.avatarImageView.image = UIImage(named: "robot", in: Bundle(for: Drift.self), compatibleWith: nil)
+                            emptyState.avatarImageView.backgroundColor = DriftDataStore.sharedInstance.generateBackgroundColor()
+                            
+                        } else if let avatarURLString = teamMember.avatarURL, let avatarURL = URL(string: avatarURLString) {
+                            emptyState.avatarImageView.af_setImage(withURL: avatarURL)
+                        }
+                    }
                 }
             }
             
@@ -198,14 +230,19 @@ class ConversationViewController: SLKTextViewController {
         }
     }
     
-    func rotated() {
+    @objc func rotated() {
         if UIDeviceOrientationIsLandscape(UIDevice.current.orientation) {
-            if emptyState.isHidden == false && emptyState.alpha == 1.0 && UIDevice.current.userInterfaceIdiom == .phone && max(UIScreen.main.bounds.size.width, UIScreen.main.bounds.size.height) <= 568.0{
-                emptyState.isHidden = true
+            if UIDevice.current.userInterfaceIdiom == .phone {
+                emptyState.avatarImageView.isHidden = true
+                if emptyState.isHidden == false && emptyState.alpha == 1.0 && max(UIScreen.main.bounds.size.width, UIScreen.main.bounds.size.height) <= 568.0{
+                    emptyState.isHidden = true
+                }
             }
+
         }
         
         if UIDeviceOrientationIsPortrait(UIDevice.current.orientation) {
+            emptyState.avatarImageView.isHidden = false
             if emptyState.isHidden == true && emptyState.alpha == 1.0 && UIDevice.current.userInterfaceIdiom == .phone && max(UIScreen.main.bounds.size.width, UIScreen.main.bounds.size.height) <= 568.0{
                 emptyState.isHidden = false
             }
@@ -215,7 +252,12 @@ class ConversationViewController: SLKTextViewController {
     func setupSlackTextView() {
         tableView?.backgroundColor = UIColor.white
         tableView?.separatorStyle = .none
-
+        automaticallyAdjustsScrollViewInsets = false
+        
+        if #available(iOS 11.0, *) {
+            tableView?.contentInsetAdjustmentBehavior = .never
+        }
+        
         textInputbar.barTintColor = UIColor.white
        
         leftButton.tintColor = UIColor.lightGray
@@ -234,7 +276,7 @@ class ConversationViewController: SLKTextViewController {
     }
     
     
-    func dismissVC() {
+    @objc func dismissVC() {
         dismissKeyboard(true)
         dismiss(animated: true, completion: nil)
     }
@@ -299,7 +341,7 @@ class ConversationViewController: SLKTextViewController {
         cell.transform = tableView.transform
         cell.setNeedsLayout()
         return cell
-
+        
     }
     
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
@@ -312,7 +354,7 @@ class ConversationViewController: SLKTextViewController {
         }
         return messages.count
     }
-
+    
     override func numberOfSections(in tableView: UITableView) -> Int {
         return 1
     }
@@ -323,13 +365,10 @@ class ConversationViewController: SLKTextViewController {
             let alert = UIAlertController(title:nil, message: nil, preferredStyle: .actionSheet)
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel, handler: nil))
             alert.addAction(UIAlertAction(title:"Retry Send", style: .default, handler: { (_) -> Void in
-                let messageRequest = Message()
-                messageRequest.body = message.body!
-                messageRequest.requestId = message.requestId
-                messageRequest.sendStatus = .Pending
-                messageRequest.type = message.type
-                self.tableView!.reloadRows(at: [indexPath as IndexPath], with: .none)
-                self.postMessage(messageRequest)
+                message.sendStatus = .Pending
+                self.messages[indexPath.row] = message
+                self.tableView!.reloadRows(at: [indexPath], with: .none)
+                self.postMessage(message)
             }))
             alert.addAction(UIAlertAction(title:"Delete Message", style: .destructive, handler: { (_) -> Void in
                 self.messages.remove(at: self.messages.count-indexPath.row-1)
@@ -363,7 +402,7 @@ class ConversationViewController: SLKTextViewController {
             return CGFloat.leastNormalMagnitude
     }
     
-    func didReceiveNewMessage(notification: Notification) {
+    @objc func didReceiveNewMessage(notification: Notification) {
         
         if let message = notification.userInfo?["message"] as? Message {
             if message.conversationId == conversationId {
@@ -452,12 +491,8 @@ class ConversationViewController: SLKTextViewController {
                     message.sendStatus = .Sent
                     self.messages[index] = message
                 }else{
-                    let message = Message()
-                    message.authorId = DriftDataStore.sharedInstance.auth?.enduser?.userId
-                    message.body = messageRequest.body
-                    message.requestId = messageRequest.requestId
-                    message.sendStatus = .Failed
-                    self.messages.insert(message, at: 0)
+                    messageRequest.sendStatus = .Failed
+                    self.messages[index] = messageRequest
                 }
                 
                 self.tableView!.reloadRows(at: [IndexPath(row:index, section: 0)], with: .none)
@@ -590,30 +625,32 @@ extension ConversationViewController: UIImagePickerControllerDelegate, UINavigat
         picker.dismiss(animated: true, completion: nil)
     }
     
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingImage image: UIImage!, editingInfo: [AnyHashable: Any]!) {
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
         picker.dismiss(animated: true, completion: nil)
-        if let imageRep = UIImageJPEGRepresentation(image, 0.2){
-            let newAttachment = Attachment()
-            newAttachment.data = imageRep
-            newAttachment.conversationId = conversationId!
-            newAttachment.mimeType = "image/jpeg"
-            newAttachment.fileName = "image.jpg"
-            
-            DriftAPIManager.postAttachment(newAttachment,authToken: DriftDataStore.sharedInstance.auth!.accessToken) { (result) in
-                switch result{
-                case .success(let attachment):
-                    let messageRequest = Message()
-                    messageRequest.attachmentIds.append(attachment.id)
-                    self.postMessage(messageRequest)
-                case .failure:
-                    let alert = UIAlertController(title: "Unable to upload file", message: nil, preferredStyle: UIAlertControllerStyle.alert)
-                    alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: nil))
-                    self.present(alert, animated: true, completion: nil)
-                    LoggerManager.log("Unable to upload file with mimeType: \(newAttachment.mimeType)")
 
+        if let image = info[UIImagePickerControllerOriginalImage] as? UIImage {
+            if let imageRep = UIImageJPEGRepresentation(image, 0.2){
+                let newAttachment = Attachment()
+                newAttachment.data = imageRep
+                newAttachment.conversationId = conversationId!
+                newAttachment.mimeType = "image/jpeg"
+                newAttachment.fileName = "image.jpg"
+                
+                DriftAPIManager.postAttachment(newAttachment,authToken: DriftDataStore.sharedInstance.auth!.accessToken) { (result) in
+                    switch result{
+                    case .success(let attachment):
+                        let messageRequest = Message()
+                        messageRequest.attachmentIds.append(attachment.id)
+                        self.postMessage(messageRequest)
+                    case .failure:
+                        let alert = UIAlertController(title: "Unable to upload file", message: nil, preferredStyle: UIAlertControllerStyle.alert)
+                        alert.addAction(UIAlertAction(title: "OK", style: UIAlertActionStyle.default, handler: nil))
+                        self.present(alert, animated: true, completion: nil)
+                        LoggerManager.log("Unable to upload file with mimeType: \(newAttachment.mimeType)")
+                        
+                    }
                 }
             }
         }
-    }
-    
+    }    
 }

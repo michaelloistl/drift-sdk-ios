@@ -18,6 +18,11 @@ public enum WidgetMode: String{
     case auto   = "AUTO"
 }
 
+public enum UserListMode: String{
+    case random = "RANDOM"
+    case custom   = "CUSTOM"
+}
+
 ///Embed - The organisation specific data used to customise the SDK for each organization
 struct Embed: Mappable {
     
@@ -25,7 +30,6 @@ struct Embed: Mappable {
     var embedId: String!
     var inboxId: Int!
     
-    var layerAppId: String!
     var clientId: String!
     var redirectUri: String!
     
@@ -39,34 +43,25 @@ struct Embed: Mappable {
     var inboxEmailAddress: String?
     var refreshRate: Int?
     
-    var widgetStatus: WidgetStatus?{
-        get{
-            return WidgetStatus(rawValue: widgetStatusRaw)
-        }
-    }
-    var widgetStatusRaw = WidgetStatus.on.rawValue
+    var widgetStatus: WidgetStatus = .on
     
-    var widgetMode: WidgetMode?{
-        get{
-            return WidgetMode(rawValue: widgetModeRaw)
-        }
-    }
-    var widgetModeRaw = WidgetMode.manual.rawValue
+    var widgetMode: WidgetMode = .manual
     
     var openHours: [OpenHours] = []
     var timeZoneString: String?
     var backgroundColorString: String?
+    var users: [User] = []
+    
+    var userListMode: UserListMode = .random
+    var userListIds: [Int] = []
     
     init?(map: Map) {
         //These fields are required, without them we fail to init the object
-        orgId       = map["orgId"].validNotEmpty()
-        embedId     = map["id"].validNotEmpty()
-        inboxId     = map["configuration.inboxId"].validNotEmpty()
-        layerAppId  = map["configuration.layerAppId"].validNotEmpty()
-        clientId    = map["configuration.authClientId"].validNotEmpty()
-        redirectUri = map["configuration.redirectUri"].validNotEmpty()
-        
-        if !map.isValidNotEmpty{
+        if map["orgId"] == nil || map["orgId"] as? String == "" ||
+            map["id"] == nil || map["id"] as? String == "" ||
+            map["configuration.inboxId"] == nil || map["configuration.inboxId"] as? String == "" ||
+            map["configuration.authClientId"] == nil || map["configuration.authClientId"] as? String == "" ||
+            map["configuration.authClientId"] == nil || map["configuration.authClientId"] as? String == ""{
             return nil
         }
     }
@@ -75,7 +70,6 @@ struct Embed: Mappable {
         orgId               <- map["orgId"]
         embedId             <- map["id"]
         inboxId             <- map["configuration.inboxId"]
-        layerAppId          <- map["configuration.layerAppId"]
         clientId            <- map["configuration.authClientId"]
         redirectUri         <- map["configuration.redirectUri"]
         backgroundColor     <- map["configuration.theme.backgroundColor"]
@@ -86,12 +80,14 @@ struct Embed: Mappable {
         inboxEmailAddress   <- map["configuration.inboxEmailAddress"]
         refreshRate         <- map["configuration.refreshRate"]
         
-        widgetStatusRaw         <- map["configuration.widgetStatus"]
-        widgetModeRaw           <- map["configuration.widgetMode"]
+        widgetStatus         <- map["configuration.widgetStatus"]
+        widgetMode           <- map["configuration.widgetMode"]
         timeZoneString          <- map["configuration.theme.timezone"]
         backgroundColorString   <- map["configuration.theme.backgroundColor"]
         openHours               <- map["configuration.theme.openHours"]
-
+        userListMode         <- map["configuration.theme.userListMode"]
+        users                    <- map["configuration.team"]
+        userListIds                <- map["configuration.theme.userList"]
     }
     
     public func isOrgCurrentlyOpen() -> Bool {

@@ -18,13 +18,13 @@ class ConversationListViewController: UIViewController {
     @IBOutlet weak var emptyStateButton: UIButton!
     
     var enrichedConversations: [EnrichedConversation] = []
-    var users: [CampaignOrganizer] = []
+    var users: [User] = []
     var dateFormatter = DriftDateFormatter()
     var refreshControl: UIRefreshControl!
     
-    var endUserId: Int!
+    var endUserId: Int?
     
-    class func navigationController(endUserId: Int) -> UINavigationController {
+    class func navigationController(endUserId: Int? = nil) -> UINavigationController {
         let vc = ConversationListViewController()
         vc.endUserId = endUserId
         let navVC = UINavigationController(rootViewController: vc)
@@ -34,10 +34,10 @@ class ConversationListViewController: UIViewController {
         let rightButton = UIBarButtonItem(image:  UIImage(named: "newChatIcon", in: Bundle(for: Drift.self), compatibleWith: nil), style: UIBarButtonItemStyle.plain, target: vc, action: #selector(ConversationListViewController.startNewConversation))
         rightButton.tintColor = DriftDataStore.sharedInstance.generateForegroundColor()
         
-        navVC.navigationBar.titleTextAttributes = [NSForegroundColorAttributeName: DriftDataStore.sharedInstance.generateForegroundColor()]
+        navVC.navigationBar.titleTextAttributes = [NSAttributedStringKey.foregroundColor: DriftDataStore.sharedInstance.generateForegroundColor()]
         navVC.navigationBar.barTintColor = DriftDataStore.sharedInstance.generateBackgroundColor()
         navVC.navigationBar.tintColor = DriftDataStore.sharedInstance.generateForegroundColor()
-        navVC.navigationBar.titleTextAttributes = [NSForegroundColorAttributeName: DriftDataStore.sharedInstance.generateForegroundColor(), NSFontAttributeName: UIFont(name: "AvenirNext-Medium", size: 16)!]
+        navVC.navigationBar.titleTextAttributes = [NSAttributedStringKey.foregroundColor: DriftDataStore.sharedInstance.generateForegroundColor(), NSAttributedStringKey.font: UIFont(name: "AvenirNext-Medium", size: 16)!]
         
         vc.navigationItem.leftBarButtonItem  = leftButton
         vc.navigationItem.rightBarButtonItem = rightButton
@@ -51,6 +51,26 @@ class ConversationListViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        let unableToAuthAlert = UIAlertController(title: "Unable to connect to chat", message: "Please try again later", preferredStyle: .alert)
+        unableToAuthAlert.addAction(UIAlertAction.init(title: "OK", style: UIAlertActionStyle.cancel, handler: { (action) in
+            self.dismissVC()
+        }))
+
+        if endUserId == nil, let embedId = DriftDataStore.sharedInstance.embed?.embedId, let userEmail = DriftDataStore.sharedInstance.userEmail, let userId = DriftDataStore.sharedInstance.userId {
+            DriftManager.retrieveDataFromEmbeds(embedId, completion: { (success) in
+                DriftManager.registerUser(userId, email: userEmail, attrs: nil, completion: { (endUserId) in
+                    if let endUserId = endUserId {
+                        self.endUserId = endUserId
+                        self.getConversations()
+                        return
+                    }
+                })
+            })
+            present(unableToAuthAlert, animated: true)
+        }
+        
+        
         setupEmptyState()
         tableView.tableFooterView = UIView(frame: CGRect.zero)
         tableView.delegate = self
@@ -87,29 +107,34 @@ class ConversationListViewController: UIViewController {
         getConversations()
     }
     
-    func dismissVC() {
+    @objc func dismissVC() {
+        SVProgressHUD.dismiss()
         dismiss(animated: true, completion: nil)
     }
     
-    func getConversations() {
-        DriftAPIManager.getEnrichedConversations(endUserId) { (result) in
-            self.refreshControl.endRefreshing()
-            SVProgressHUD.dismiss()
-            switch result{
-            case .success(let enrichedConversations):
-                self.enrichedConversations = enrichedConversations
-                self.tableView.reloadData()
-                if self.enrichedConversations.count == 0{
-                    self.emptyStateView.isHidden = false
+    @objc func getConversations() {
+        if let endUserId = endUserId{
+            DriftAPIManager.getEnrichedConversations(endUserId) { (result) in
+                self.refreshControl.endRefreshing()
+                SVProgressHUD.dismiss()
+                switch result{
+                case .success(let enrichedConversations):
+                    self.enrichedConversations = enrichedConversations
+                    self.tableView.reloadData()
+                    if self.enrichedConversations.count == 0{
+                        self.emptyStateView.isHidden = false
+                    }
+                case .failure(let error):
+                    SVProgressHUD.dismiss()
+                    LoggerManager.log("Unable to get conversations for endUser:  \(self.endUserId): \(error)")
                 }
-            case .failure(let error):
-                LoggerManager.log("Unable to get conversations for endUser:  \(self.endUserId): \(error)")
+                
             }
 
         }
     }
     
-    func startNewConversation() {
+    @objc func startNewConversation() {
         let conversationViewController = ConversationViewController(conversationType: ConversationViewController.ConversationType.createConversation(authorId: endUserId))
         navigationController?.show(conversationViewController, sender: self)
     }
