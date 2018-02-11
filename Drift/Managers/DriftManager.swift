@@ -198,7 +198,7 @@ public class DriftManager: NSObject {
 ///Convenience Extension to dismiss a MFMailComposeViewController - Used as views will not stay in window and delegate would become nil
 extension DriftManager: MFMailComposeViewControllerDelegate {
     
-    func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
+    public func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult, error: Error?) {
         controller.dismiss(animated: true, completion: nil)
     }
     
